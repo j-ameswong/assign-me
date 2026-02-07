@@ -1,0 +1,83 @@
+@startuml class-diagram
+
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+enum EventStatus {
+  open
+  closed
+  allocated
+}
+
+class Event {
+  +id : uuid <<PK>>
+  +title : text
+  +description : text
+  +join_code : text <<unique>>
+  +admin_token : text <<hashed>>
+  +status : EventStatus
+  +email_verification : boolean = false
+  +created_at : timestamptz
+  +expires_at : timestamptz
+}
+
+class Option {
+  +id : uuid <<PK>>
+  +event_id : uuid <<FK>>
+  +name : text
+  +description : text
+  +capacity : integer = 1
+  +sort_order : integer
+}
+
+class Submission {
+  +id : uuid <<PK>>
+  +event_id : uuid <<FK>>
+  +email : text
+  +rankings : uuid[]
+  +verified : boolean = true
+  +submitted_at : timestamptz
+  __
+  <<unique>> (event_id, email)
+}
+
+class VerificationCode {
+  +id : uuid <<PK>>
+  +submission_id : uuid <<FK>>
+  +code : text
+  +expires_at : timestamptz
+}
+
+class Allocation {
+  +id : uuid <<PK>>
+  +event_id : uuid <<FK>>
+  +submission_id : uuid <<FK>>
+  +option_id : uuid <<FK>> {nullable}
+}
+
+Event "1" -- "1..*" Option : has >
+Event "1" -- "0..*" Submission : receives >
+Event "1" -- "0..*" Allocation : produces >
+Submission "1" -- "0..1" VerificationCode : verified by >
+Submission "1" -- "0..1" Allocation : assigned in >
+Option "0..1" -- "0..*" Allocation : fills <
+
+note right of Allocation
+  option_id is nullable:
+  null means participant
+  was unassigned
+end note
+
+note right of Submission
+  rankings is an ordered array
+  of Option IDs representing
+  the participant's preferences
+end note
+
+note bottom of Event
+  admin_token is hashed (bcrypt/sha256).
+  Raw token shown once at creation
+  and cannot be recovered.
+end note
+
+@enduml

@@ -1,0 +1,56 @@
+@startuml activity-serial-dictatorship
+
+title Serial Dictatorship Algorithm
+
+start
+
+:Receive inputs:
+  options with (id, capacity)
+  submissions with (email, rankings, submitted_at);
+
+:Sort submissions by submitted_at
+(ascending — first come, first served);
+
+:Initialize remaining_capacity(option)
+= option.capacity for all options;
+
+:Initialize assignments = empty map;
+:Initialize unassigned = empty list;
+
+while (More submissions to process?) is (yes)
+  :Take next submission
+  (in FCFS order);
+  :assigned = false;
+
+  while (More ranked options in this submission?) is (yes)
+    :Take next option
+    (in preference order);
+
+    if (remaining_capacity(option) > 0?) then (yes)
+      :Assign participant to this option;
+      :assignments(email) = option_id;
+      :remaining_capacity(option) -= 1;
+      :assigned = true;
+      break
+    else (no)
+      :Skip this option
+      (no capacity left);
+    endif
+  endwhile (no more ranked options)
+
+  if (assigned == false?) then (yes)
+    :Add participant to
+    unassigned list;
+  else (no)
+  endif
+endwhile (no)
+
+:Store allocations in DB;
+
+:Return:
+  assignments (email to option_id)
+  unassigned (emails list);
+
+stop
+
+@enduml

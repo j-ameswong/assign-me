@@ -1,0 +1,55 @@
+@startuml activity-create-event
+
+title Host: Create Event
+
+start
+
+:Host visits homepage;
+:Clicks "Create Event";
+:Navigates to /create;
+
+:Fills in event title;
+:Fills in description (optional);
+:Toggles email verification (default off);
+
+repeat
+  :Adds option with name,
+  description (optional),
+  and capacity (default 1);
+repeat while (more options to add?) is (yes)
+->no;
+
+:Clicks "Create";
+
+:POST /api/events;
+
+:Backend generates join_code
+(8-char alphanumeric, e.g. PROJ-7X2K);
+:Backend generates admin_token;
+:Backend hashes admin_token
+(bcrypt or sha256);
+:Backend stores event with
+status = "open",
+expires_at = now + 30 days;
+:Backend stores options
+with sort_order;
+
+:Returns raw admin_token
+and join_code to host;
+
+:Host sees:
+  Admin link: /event/abc123/admin?token=secret456
+  Join code: e.g. PROJ-7X2K
+  Participant link: /join/PROJ-7X2K;
+
+floating note right
+  Raw admin token is shown
+  **once** and cannot
+  be recovered.
+end note
+
+:Host bookmarks/saves admin link;
+
+stop
+
+@enduml

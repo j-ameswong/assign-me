@@ -1,0 +1,87 @@
+@startuml activity-manage-allocate
+
+title Host: Manage Event & Run Allocation
+
+start
+
+:Host visits admin link
+/event/{id}/admin?token={token};
+
+:GET /api/events/{id}/admin;
+
+:Backend verifies admin_token
+against hashed value in DB;
+
+if (Token valid?) then (yes)
+  :Dashboard shows:
+  — Event details & status
+  — Submission count
+  — Submission list (email, timestamp, verified);
+
+  repeat
+    split
+      :View a submission's rankings;
+    split again
+      :Delete a submission;
+      :DELETE /api/events/{id}/submissions/{subId};
+    split again
+      :Copy join link / join code;
+    split again
+      if (Status == "open"?) then (yes)
+        :Close event;
+        :PATCH /api/events/{id}/admin
+        {status: "closed"};
+        :Event stops accepting submissions;
+      else (no)
+        if (Status == "closed"?) then (yes)
+          split
+            :Reopen event;
+            :PATCH /api/events/{id}/admin
+            {status: "open"};
+          split again
+            :Click "Run Allocation";
+            note right
+              Only available
+              when status == "closed"
+            end note
+
+            :POST /api/events/{id}/allocate;
+            :Backend runs Serial Dictatorship
+            algorithm (see algorithm diagram);
+            :Backend stores allocations;
+            :Backend sets status = "allocated";
+
+            :Redirected to
+            /event/{id}/admin/results;
+
+            :Results page shows:
+            — Each option with assigned participants
+            — Unassigned participants list;
+
+            split
+              :View results on page;
+            split again
+              :Export as CSV;
+              :GET /api/events/{id}/results/csv;
+            end split
+
+            stop
+          end split
+        else (allocated)
+          :View results;
+          :GET /api/events/{id}/results;
+          stop
+        endif
+      endif
+    end split
+  repeat while (continue managing?) is (yes)
+  ->done;
+
+else (no)
+  :Error: unauthorized;
+  stop
+endif
+
+stop
+
+@enduml

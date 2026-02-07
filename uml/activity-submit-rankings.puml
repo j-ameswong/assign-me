@@ -1,0 +1,87 @@
+@startuml activity-submit-rankings
+
+title Participant: Submit Rankings
+
+start
+
+split
+  :Visits join link
+  /join/{joinCode};
+split again
+  :Enters join code
+  on homepage;
+end split
+
+:GET /api/events/{joinCode};
+
+if (Event exists and status == "open"?) then (yes)
+  :Sees event title, description,
+  and list of options;
+
+  :Enters email address;
+  :Ranks options via drag-and-drop
+  (min 1, max all options);
+  :Clicks "Submit";
+
+  :POST /api/events/{id}/submissions;
+
+  :Backend validates:
+  — email format
+  — rankings reference valid option IDs
+  — no duplicate submission for this email;
+
+  if (Validation passes?) then (yes)
+    if (Email verification enabled?) then (yes)
+      :Backend creates submission
+      with verified = false;
+      :Backend generates 6-digit code;
+      :Backend stores verification_code
+      (expires in 15 minutes);
+      :Backend sends code via email;
+
+      :Participant redirected to
+      /join/{joinCode}/verify;
+      :Enters 6-digit code;
+
+      :POST /api/events/{id}/verify;
+
+      if (Code valid and not expired?) then (yes)
+        :Backend sets submission
+        verified = true;
+        :Redirected to
+        /join/{joinCode}/success;
+      else (no)
+        :Error: invalid or expired code;
+        note right
+          Unverified submissions
+          are cleaned up after
+          15 minutes
+        end note
+        stop
+      endif
+
+    else (no)
+      :Backend creates submission
+      with verified = true;
+      :Redirected to
+      /join/{joinCode}/success;
+    endif
+
+    :Participant sees
+    confirmation message;
+
+  else (no)
+    :Error message shown
+    (invalid input / duplicate email);
+    stop
+  endif
+
+else (no)
+  :Error: event not found
+  or not accepting submissions;
+  stop
+endif
+
+stop
+
+@enduml
