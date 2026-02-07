@@ -74,7 +74,10 @@ ALTER TABLE allocations ENABLE ROW LEVEL SECURITY;
 
 -- 8. RLS Policies — allow full access for service role only
 -- The app uses the service role key in API routes, so we grant full access.
--- The anon key is used only for client-side reads via explicit API routes.
+-- The publishable key is used only for client-side reads via explicit API routes.
+
+-- Technically, full access is already implied by the use of the secret key,
+-- but Supabase will complain about no RLS policies
 
 CREATE POLICY "Service role full access" ON events
   FOR ALL USING (true) WITH CHECK (true);
