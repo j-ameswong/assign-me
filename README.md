@@ -20,7 +20,7 @@ No accounts needed. Hosts get a secret admin link, participants just need the jo
 
 - **Next.js** (App Router) - Frontend and API routes
 - **Supabase** (PostgreSQL) - Database with row-level security
-- **Tailwind CSS** - Styling
+- **Tailwind CSS** - Styling ([Autumn Harvest](https://coolors.co/palette/6f1d1b-bb9457-432818-99582a-ffe6a7) Color Palette from [Coolors](https://coolors.co))
 - **Vercel** - Deployment
 
 ## The Algorithm
