@@ -1,5 +1,38 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
+import { extractToken, verifyAdminToken } from "@/lib/auth";
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: eventId } = await params;
+  const token = extractToken(request);
+
+  if (!token) {
+    return NextResponse.json({ error: "Admin token required" }, { status: 401 });
+  }
+
+  const event = await verifyAdminToken(eventId, token);
+  if (!event) {
+    return NextResponse.json({ error: "Invalid token" }, { status: 403 });
+  }
+
+  const { data: submissions, error } = await supabaseAdmin
+    .from("submissions")
+    .select("id, email, rankings, verified, submitted_at")
+    .eq("event_id", eventId)
+    .order("submitted_at", { ascending: true });
+
+  if (error) {
+    return NextResponse.json(
+      { error: "Failed to fetch submissions" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ submissions: submissions ?? [] });
+}
 
 export async function POST(
   request: Request,
