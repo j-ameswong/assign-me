@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
 interface Option {
   id: string;
@@ -35,6 +35,7 @@ interface Submission {
 export default function AdminDashboard() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const token = searchParams.get("token");
 
   const [event, setEvent] = useState<EventData | null>(null);
@@ -42,6 +43,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [allocating, setAllocating] = useState(false);
+  const [allocateError, setAllocateError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
@@ -103,6 +106,30 @@ export default function AdminDashboard() {
       }
     } finally {
       setStatusUpdating(false);
+    }
+  }
+
+  async function runAllocation() {
+    if (!confirm("Run the allocation? This action cannot be undone.")) return;
+    setAllocating(true);
+    setAllocateError(null);
+
+    try {
+      const res = await fetch(`/api/events/${params.id}/allocate`, {
+        method: "POST",
+        headers: authHeader,
+      });
+
+      if (res.ok) {
+        router.push(`/event/${params.id}/admin/results?token=${token}`);
+      } else {
+        const data = await res.json();
+        setAllocateError(data.error ?? "Allocation failed.");
+      }
+    } catch {
+      setAllocateError("Network error. Please try again.");
+    } finally {
+      setAllocating(false);
     }
   }
 
@@ -229,14 +256,34 @@ export default function AdminDashboard() {
             </button>
           )}
           {event.status === "closed" && (
+            <button
+              onClick={runAllocation}
+              disabled={allocating}
+              className="h-10 rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover transition-colors disabled:opacity-50"
+            >
+              {allocating ? "Allocating..." : "Run Allocation"}
+            </button>
+          )}
+          {event.status === "open" && (
             <span className="text-sm text-muted">
               Close submissions before running the allocation.
             </span>
           )}
           {event.status === "allocated" && (
+            <a
+              href={`/event/${params.id}/admin/results?token=${token}`}
+              className="h-10 inline-flex items-center rounded-lg bg-primary px-4 text-sm font-medium text-white hover:bg-primary-hover transition-colors"
+            >
+              View Results
+            </a>
+          )}
+          {event.status === "allocated" && (
             <span className="text-sm text-muted">
               Allocation has been run. Status is final.
             </span>
+          )}
+          {allocateError && (
+            <p className="w-full text-sm text-red-600">{allocateError}</p>
           )}
         </div>
 
