@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Papa from 'papaparse';
 
 interface OptionRow {
   name: string;
@@ -15,7 +16,11 @@ interface CreatedEvent {
   admin_url: string;
 }
 
-const emptyOption = (): OptionRow => ({ name: "", description: "", capacity: 1 });
+const emptyOption = (): OptionRow => ({
+  name: "",
+  description: "",
+  capacity: 1,
+});
 
 export default function CreateEventPage() {
   const [title, setTitle] = useState("");
@@ -36,8 +41,61 @@ export default function CreateEventPage() {
     setOptions(options.filter((_, i) => i !== index));
   }
 
-  function updateOption(index: number, field: keyof OptionRow, value: string | number) {
-    setOptions(options.map((opt, i) => (i === index ? { ...opt, [field]: value } : opt)));
+  function updateOption(
+    index: number,
+    field: keyof OptionRow,
+    value: string | number,
+  ) {
+    setOptions(
+      options.map((opt, i) => (i === index ? { ...opt, [field]: value } : opt)),
+    );
+  }
+
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const parsed: OptionRow[] = results.data
+          .filter((row) => row.name?.trim())
+          .map((row) => ({
+            name: row.name.trim(),
+            description: (row.description ?? "").trim(),
+            capacity: Math.max(1, parseInt(row.capacity) || 1),
+          }));
+
+        if (parsed.length === 0) {
+          setError("CSV has no valid rows. Make sure there is a \"name\" column.");
+          return;
+        }
+
+        setOptions(parsed);
+        setError(null);
+      },
+      error: () => {
+        setError("Failed to parse CSV file.");
+      },
+    });
+
+    // Reset the input so the same file can be re-uploaded
+    e.target.value = "";
+  }
+
+  function downloadTemplate() {
+    const csv = Papa.unparse([
+      { name: "Option A", description: "Description of option A", capacity: 1 },
+      { name: "Option B", description: "Description of option B", capacity: 2 },
+    ]);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "options_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -90,7 +148,9 @@ export default function CreateEventPage() {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="w-full max-w-md px-6 py-16">
-          <h1 className="text-3xl font-bold text-primary mb-2">Event Created!</h1>
+          <h1 className="text-3xl font-bold text-primary mb-2">
+            Event Created!
+          </h1>
           <p className="text-muted mb-8">
             Save these details — the admin link cannot be recovered!
           </p>
@@ -169,7 +229,10 @@ export default function CreateEventPage() {
 
         {/* Title */}
         <div className="mb-4">
-          <label htmlFor="title" className="block text-sm font-medium text-foreground mb-1">
+          <label
+            htmlFor="title"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
             Title
           </label>
           <input
@@ -185,7 +248,10 @@ export default function CreateEventPage() {
 
         {/* Description */}
         <div className="mb-4">
-          <label htmlFor="description" className="block text-sm font-medium text-foreground mb-1">
+          <label
+            htmlFor="description"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
             Description <span className="text-muted">(optional)</span>
           </label>
           <textarea
@@ -235,9 +301,14 @@ export default function CreateEventPage() {
 
           <div className="flex flex-col gap-4">
             {options.map((opt, i) => (
-              <div key={i} className="rounded-lg border border-border bg-surface/40 p-4">
+              <div
+                key={i}
+                className="rounded-lg border border-border bg-surface/40 p-4"
+              >
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-muted">Option {i + 1}</span>
+                  <span className="text-sm font-medium text-muted">
+                    Option {i + 1}
+                  </span>
                   {options.length > 1 && (
                     <button
                       type="button"
@@ -259,7 +330,9 @@ export default function CreateEventPage() {
                 <input
                   type="text"
                   value={opt.description}
-                  onChange={(e) => updateOption(i, "description", e.target.value)}
+                  onChange={(e) =>
+                    updateOption(i, "description", e.target.value)
+                  }
                   placeholder="Description (optional)"
                   className="mb-2 h-10 w-full rounded-lg border border-border bg-surface px-3 text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
                 />
@@ -269,7 +342,9 @@ export default function CreateEventPage() {
                     type="number"
                     min={1}
                     value={opt.capacity}
-                    onChange={(e) => updateOption(i, "capacity", parseInt(e.target.value) || 1)}
+                    onChange={(e) =>
+                      updateOption(i, "capacity", parseInt(e.target.value) || 1)
+                    }
                     className="h-10 w-20 rounded-lg border border-border bg-surface px-3 text-foreground focus:border-accent focus:outline-none"
                   />
                 </div>
@@ -279,13 +354,58 @@ export default function CreateEventPage() {
         </div>
 
         {/* Submit */}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="h-12 w-full rounded-lg bg-primary font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
-        >
-          {submitting ? "Creating..." : "Create Event"}
-        </button>
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="h-12 flex-1 rounded-lg bg-primary font-medium text-white transition-colors hover:bg-primary-hover disabled:opacity-50"
+          >
+            {submitting ? "Creating..." : "Create Event"}
+          </button>
+          <label
+            className="flex h-12 px-3 cursor-pointer items-center justify-center rounded-lg border border-border font-medium text-secondary transition-colors hover:bg-surface"
+            title="Upload options from CSV"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="size-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
+              />
+            </svg>
+            <span className="pl-1 text-sm">.csv</span>
+            <input type="file" accept=".csv" onChange={handleUpload} className="hidden" />
+          </label>
+          <button
+            type="button"
+            onClick={downloadTemplate}
+            className="flex h-12 px-3 items-center justify-center rounded-lg border border-border font-medium text-secondary transition-colors hover:bg-surface"
+            title="Download CSV template"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="size-5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+              />
+            </svg>
+            <span className="pl-1 text-sm">Template</span>
+          </button>
+        </div>
       </form>
     </div>
   );
