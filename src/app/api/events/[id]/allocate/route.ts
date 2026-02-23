@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 import { extractToken, verifyAdminToken } from "@/lib/auth";
 import { serialDictatorship } from "@/lib/algorithm";
+import { sendAllocationEmails } from "@/lib/email";
 import type { Option, Submission } from "@/lib/types";
 
 export async function POST(
@@ -111,9 +112,37 @@ export async function POST(
     );
   }
 
+  // Send emails out to assigned users
+  const { data: allocatedSubmissions, error: alloErr } = await supabaseAdmin
+    // ensure that allocations are run first
+    .from("allocations")
+    .select("*, submissions(*)")
+    .eq("event_id", eventId)
+
+  if (alloErr) {
+    return NextResponse.json(
+      { error: "Unable to fetch users allocated for event" },
+      { status: 500 }
+    );
+  }
+
+  // Build option lookup for email body
+  const optionById = new Map(options.map((o) => [o.id, o.name]));
+
+  const emailPayloads = (allocatedSubmissions ?? [])
+    .filter((a) => a.submissions && (a.submissions as { email: string }).email)
+    .map((a) => ({
+      email: (a.submissions as { email: string }).email,
+      eventTitle: event.title,
+      optionName: a.option_id ? (optionById.get(a.option_id) ?? null) : null,
+    }));
+
+  const { sent, failed } = await sendAllocationEmails(emailPayloads);
+
   return NextResponse.json({
     assigned: result.assignments.size,
     unassigned: result.unassigned.length,
     total: submissions.length,
+    emails: { sent, failed },
   });
 }
