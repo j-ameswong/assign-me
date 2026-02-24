@@ -105,14 +105,20 @@ export default function ResultsPage() {
           </p>
         </div>
 
-        {/* Export */}
-        <div className="mb-8">
+        {/* Actions */}
+        <div className="mb-8 flex flex-wrap gap-3">
           <button
             onClick={exportCsv}
             className="h-10 rounded-lg bg-secondary px-4 text-sm font-medium text-white hover:bg-secondary/80 transition-colors"
           >
             Export CSV
           </button>
+          <Link
+            href={`/event/${params.id}/admin/emails?token=${token}`}
+            className="h-10 inline-flex items-center rounded-lg border border-border bg-surface/40 px-4 text-sm font-medium text-foreground hover:bg-surface transition-colors"
+          >
+            Preview Emails
+          </Link>
         </div>
 
         {/* Results by option */}
