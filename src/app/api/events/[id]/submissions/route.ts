@@ -106,23 +106,63 @@ export async function POST(
     );
   }
 
-  // 6. Insert submission
-  // If email verification is enabled, mark as unverified
-  const verified = !event.email_verification;
+  // 6. Insert or update submission depending on email_verification setting
+  if (event.email_verification) {
+    // A verified submission must already exist (created during email verification)
+    const { data: existing, error: findErr } = await supabaseAdmin
+      .from("submissions")
+      .select("id, verified, submitted_at")
+      .eq("event_id", eventId)
+      .eq("email", email.toLowerCase().trim())
+      .maybeSingle();
 
+    if (findErr) {
+      return NextResponse.json(
+        { error: "Failed to look up submission" },
+        { status: 500 }
+      );
+    }
+
+    if (!existing || !existing.verified) {
+      return NextResponse.json(
+        { error: "Please verify your email before submitting rankings" },
+        { status: 403 }
+      );
+    }
+
+    const { error: updateErr } = await supabaseAdmin
+      .from("submissions")
+      .update({ rankings })
+      .eq("id", existing.id);
+
+    if (updateErr) {
+      return NextResponse.json(
+        { error: "Failed to save rankings" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      id: existing.id,
+      email,
+      verified: true,
+      submitted_at: existing.submitted_at,
+    });
+  }
+
+  // No email verification — insert fresh submission
   const { data: submission, error: insertError } = await supabaseAdmin
     .from("submissions")
     .insert({
       event_id: eventId,
       email: email.toLowerCase().trim(),
       rankings,
-      verified,
+      verified: true,
     })
     .select()
     .single();
 
   if (insertError) {
-    // Unique constraint violation = duplicate email for this event
     if (insertError.code === "23505") {
       return NextResponse.json(
         { error: "A submission with this email already exists for this event" },

@@ -8,7 +8,7 @@
 
 ### Example Use Case
 
-A university professor has 15 dissertation projects but 40 students. Each project can take 2–3 students. Students rank their preferred projects. The algorithm allocates projects to maximize overall satisfaction, with ties broken by submission order (first-come-first-served).
+A university professor has 15 dissertation projects but 40 students. Each project can take 2–3 students. Students rank their preferred projects. The algorithm allocates projects to maximise overall satisfaction, with ties broken by submission order (first-come-first-served).
 
 ---
 
@@ -16,13 +16,13 @@ A university professor has 15 dissertation projects but 40 students. Each projec
 
 | Layer       | Technology                     | Purpose                                    |
 | ----------- | ------------------------------ | ------------------------------------------ |
-| Frontend    | Next.js (App Router, React 18) | UI, routing, server-side rendering          |
+| Frontend    | Next.js 16 (App Router, React 19) | UI, routing, server-side rendering        |
 | Backend     | Next.js API Routes             | REST API endpoints, algorithm execution     |
 | Database    | Supabase (PostgreSQL)          | Persistent storage, Row Level Security      |
-| Auth        | None (link-based access)       | Secret admin links, participant join codes   |
-| Email       | Supabase Edge Functions or Resend | Optional verification emails            |
+| Auth        | None (link-based access)       | Secret admin links, participant join codes  |
+| Email       | Resend (currently disabled)    | Allocation + verification emails           |
 | Hosting     | Vercel (recommended)           | Deployment, serverless functions            |
-| Styling     | Tailwind CSS                   | Utility-first CSS                          |
+| Styling     | Tailwind CSS v4                | Utility-first CSS                          |
 
 ---
 
@@ -35,7 +35,7 @@ An event is the central entity. It contains:
 - **Title** — e.g. "CS301 Project Allocation"
 - **Description** (optional) — instructions for participants
 - **Options** — a list of things to allocate, each with a name, optional description, and a **capacity** (how many participants can be assigned to it)
-- **Admin token** — a secret URL token that gives the creator full control
+- **Admin token** — a secret URL token that gives the creator full control (SHA256-hashed in DB; shown once at creation, unrecoverable)
 - **Join code** — a short, human-friendly code (e.g. `PROJ-7X2K`) that participants use to find the event
 - **Status** — `open` (accepting submissions), `closed` (no more submissions), or `allocated` (algorithm has run)
 - **Email verification required** — boolean, set at creation time
@@ -73,6 +73,7 @@ After the host runs the algorithm:
 3. Adds options:
    - Each option has: name, description (optional), capacity (default 1)
    - Can add/remove options dynamically
+   - Can bulk-import options via CSV upload
 4. Clicks "Create"
 5. Receives:
    - Admin link (e.g. /event/abc123/admin?token=secret456)
@@ -87,17 +88,15 @@ After the host runs the algorithm:
 1. Participant visits the join link or enters the join code on the homepage
 2. Sees the event title, description, and list of options
 3. Enters their email address
-4. Ranks options via drag-and-drop (they can rank as many or as few as they like,
-   but must rank at least 1)
-5. Clicks "Submit"
-6. If email verification is OFF:
-   - Submission is saved immediately
-   - Participant sees a confirmation message
-7. If email verification is ON:
-   - A 6-digit verification code is sent to their email
-   - They enter the code on the next screen
-   - Once verified, submission is saved
-   - Unverified submissions are discarded after 15 minutes
+4. If email verification is ON:
+   - Clicks "Send Code" → a 6-digit code is generated and stored
+     (In production: sent via Resend. Currently: visible at /dev/inbox)
+   - A code input appears inline with a link to the dev inbox
+   - Participant enters the code and clicks "Verify"
+   - Submit button is disabled until verified
+5. Ranks options via drag-and-drop (must rank at least 1)
+6. Clicks "Submit Rankings"
+7. Sees a confirmation page
 ```
 
 ### 4.3 Host: Manage Event
@@ -105,17 +104,17 @@ After the host runs the algorithm:
 ```
 1. Host visits their admin link
 2. Dashboard shows:
-   - Event details and status
+   - Event details and status badge
+   - Join code and join link (copyable)
    - Number of submissions
    - List of all submissions (email + timestamp + verified status)
 3. Host can:
-   - View each submission's rankings
+   - View each submission's ranked options
    - Delete individual submissions (e.g. spam/untrusted emails)
    - Close the event (stops accepting new submissions)
    - Reopen the event (if not yet allocated)
    - Run the allocation algorithm (only when event is closed)
    - View results after allocation
-   - Copy the join link / join code for sharing
 ```
 
 ### 4.4 Host: Run Allocation & View Results
@@ -125,10 +124,11 @@ After the host runs the algorithm:
 2. Clicks "Run Allocation"
 3. Algorithm runs (Serial Dictatorship, FCFS order)
 4. Results page shows:
-   - For each option: which participants were assigned to it
+   - For each option: which participants were assigned
    - List of unassigned participants (if any)
-   - A note explaining unassigned participants didn't get any of their ranked choices
-5. Host can export results as CSV
+5. Host can:
+   - Export results as CSV
+   - Preview the allocation emails that would have been sent
 ```
 
 ---
@@ -156,8 +156,8 @@ Algorithm:
      b. If no option was available: participant is unassigned
 
 Output:
-  - assignments: {participant_email → option_id}
-  - unassigned: list of participant emails
+  - assignments: Map<submission_id, option_id>
+  - unassigned: string[] of submission IDs
 ```
 
 **Properties:**
@@ -172,17 +172,17 @@ Output:
 
 ### `events`
 
-| Column                    | Type         | Notes                                |
-| ------------------------- | ------------ | ------------------------------------ |
-| `id`                      | uuid (PK)    | Auto-generated                       |
-| `title`                   | text         | Required                             |
-| `description`             | text         | Optional                             |
-| `join_code`               | text (unique)| 8-char alphanumeric, e.g. PROJ-7X2K  |
-| `admin_token`             | text         | Secret, hashed (bcrypt or sha256)    |
-| `status`                  | enum         | `open`, `closed`, `allocated`        |
-| `email_verification`      | boolean      | Default false                        |
-| `created_at`              | timestamptz  | Auto                                 |
-| `expires_at`              | timestamptz  | created_at + 30 days                 |
+| Column               | Type          | Notes                                |
+| -------------------- | ------------- | ------------------------------------ |
+| `id`                 | uuid (PK)     | Auto-generated                       |
+| `title`              | text          | Required                             |
+| `description`        | text          | Optional                             |
+| `join_code`          | text (unique) | 8-char alphanumeric, e.g. PROJ-7X2K  |
+| `admin_token`        | text          | SHA256-hashed; shown once at creation |
+| `status`             | enum          | `open`, `closed`, `allocated`        |
+| `email_verification` | boolean       | Default false                        |
+| `created_at`         | timestamptz   | Auto                                 |
+| `expires_at`         | timestamptz   | created_at + 30 days                 |
 
 ### `options`
 
@@ -197,118 +197,155 @@ Output:
 
 ### `submissions`
 
-| Column        | Type        | Notes                              |
-| ------------- | ----------- | ---------------------------------- |
-| `id`          | uuid (PK)   | Auto-generated                     |
-| `event_id`    | uuid (FK)   | References events.id               |
-| `email`       | text        | Unique per event                   |
-| `rankings`    | uuid[]      | Ordered array of option IDs        |
-| `verified`    | boolean     | Default true (false if pending)    |
-| `submitted_at`| timestamptz | Auto — used for FCFS ordering      |
+| Column         | Type        | Notes                              |
+| -------------- | ----------- | ---------------------------------- |
+| `id`           | uuid (PK)   | Auto-generated                     |
+| `event_id`     | uuid (FK)   | References events.id               |
+| `email`        | text        | Unique per event                   |
+| `rankings`     | uuid[]      | Ordered array of option IDs        |
+| `verified`     | boolean     | Default true (false if pending verification) |
+| `submitted_at` | timestamptz | Auto — used for FCFS ordering      |
 
 **Unique constraint:** `(event_id, email)` — one submission per email per event.
 
+**Note on email verification flow:** When verification is enabled, a placeholder submission (rankings: [], verified: false) is created immediately when the participant requests a code. Rankings are updated and verified=true set after the code is confirmed.
+
 ### `verification_codes`
 
-| Column        | Type        | Notes                              |
-| ------------- | ----------- | ---------------------------------- |
-| `id`          | uuid (PK)   | Auto-generated                     |
-| `submission_id`| uuid (FK)  | References submissions.id          |
-| `code`        | text        | 6-digit code                       |
-| `expires_at`  | timestamptz | created_at + 15 minutes            |
+| Column          | Type        | Notes                     |
+| --------------- | ----------- | ------------------------- |
+| `id`            | uuid (PK)   | Auto-generated            |
+| `submission_id` | uuid (FK)   | References submissions.id |
+| `code`          | text        | 6-digit numeric string    |
+| `expires_at`    | timestamptz | created_at + 15 minutes   |
 
 ### `allocations`
 
-| Column         | Type       | Notes                      |
-| -------------- | ---------- | -------------------------- |
-| `id`           | uuid (PK)  | Auto-generated             |
-| `event_id`     | uuid (FK)  | References events.id       |
-| `submission_id`| uuid (FK)  | References submissions.id  |
-| `option_id`    | uuid (FK)  | References options.id (nullable — null = unassigned) |
+| Column          | Type       | Notes                                              |
+| --------------- | ---------- | -------------------------------------------------- |
+| `id`            | uuid (PK)  | Auto-generated                                     |
+| `event_id`      | uuid (FK)  | References events.id                               |
+| `submission_id` | uuid (FK)  | References submissions.id                          |
+| `option_id`     | uuid (FK)  | References options.id (nullable — null = unassigned) |
 
 ---
 
-## 7. API Routes (Next.js API Routes)
+## 7. API Routes
 
 All routes are under `/api/`.
 
 ### Event Management
 
-| Method | Route                          | Auth          | Description                  |
-| ------ | ------------------------------ | ------------- | ---------------------------- |
-| POST   | `/api/events`                  | None          | Create a new event           |
-| GET    | `/api/events/[joinCode]`       | None          | Get public event info         |
-| GET    | `/api/events/[id]/admin`       | Admin token   | Get full event details        |
-| PATCH  | `/api/events/[id]/admin`       | Admin token   | Update event (close/reopen)   |
-| POST   | `/api/events/[id]/allocate`    | Admin token   | Run the allocation algorithm  |
-| GET    | `/api/events/[id]/results`     | Admin token   | Get allocation results        |
-| GET    | `/api/events/[id]/results/csv` | Admin token   | Export results as CSV         |
+| Method | Route                       | Auth        | Description                           |
+| ------ | --------------------------- | ----------- | ------------------------------------- |
+| POST   | `/api/events`               | None        | Create a new event                    |
+| GET    | `/api/events/join/[code]`   | None        | Get public event info by join code    |
+| GET    | `/api/events/[id]/admin`    | Admin token | Get full event details + options      |
+| PATCH  | `/api/events/[id]/admin`    | Admin token | Update event status (open/closed)     |
+| POST   | `/api/events/[id]/allocate` | Admin token | Run the allocation algorithm          |
+| GET    | `/api/events/[id]/results`  | Admin token | Get allocation results (JSON or CSV)  |
+| GET    | `/api/events/[id]/emails`   | Admin token | Get allocation email previews         |
 
 ### Submissions
 
-| Method | Route                              | Auth        | Description                  |
-| ------ | ---------------------------------- | ----------- | ---------------------------- |
-| POST   | `/api/events/[id]/submissions`     | None        | Submit rankings              |
-| GET    | `/api/events/[id]/submissions`     | Admin token | List all submissions          |
-| DELETE | `/api/events/[id]/submissions/[subId]` | Admin token | Delete a submission      |
+| Method | Route                                    | Auth        | Description              |
+| ------ | ---------------------------------------- | ----------- | ------------------------ |
+| POST   | `/api/events/[id]/submissions`           | None        | Submit rankings          |
+| GET    | `/api/events/[id]/submissions`           | Admin token | List all submissions     |
+| DELETE | `/api/events/[id]/submissions/[subId]`   | Admin token | Delete a submission      |
 
 ### Verification
 
-| Method | Route                                  | Auth | Description              |
-| ------ | -------------------------------------- | ---- | ------------------------ |
-| POST   | `/api/events/[id]/verify`              | None | Verify email with code   |
+| Method | Route                       | Auth | Description                                      |
+| ------ | --------------------------- | ---- | ------------------------------------------------ |
+| POST   | `/api/events/[id]/verify`   | None | Send verification code (`{ email }`) or confirm it (`{ submission_id, code }`) |
+
+### Development
+
+| Method | Route             | Auth | Description                                   |
+| ------ | ----------------- | ---- | --------------------------------------------- |
+| GET    | `/api/dev/inbox`  | None | List pending verification code emails for dev |
 
 ### Admin Token Auth
 
-The admin token is passed as a query parameter (`?token=xxx`) or in the `Authorization` header. The backend compares it against the hashed value stored in the database.
+The admin token is passed as a query parameter (`?token=xxx`) or in the `Authorization: Bearer` header. The backend SHA256-hashes the provided value and compares it against the hash stored in the database.
 
 ---
 
 ## 8. Pages (Next.js App Router)
 
-| Route                              | Description                                      |
-| ---------------------------------- | ------------------------------------------------ |
-| `/`                                | Homepage — "Create Event" button + "Enter Join Code" input |
-| `/create`                          | Event creation form                              |
-| `/event/[id]/admin`                | Host dashboard (requires `?token=` query param)  |
-| `/event/[id]/admin/results`        | Allocation results page                          |
-| `/join/[joinCode]`                 | Participant submission page                      |
-| `/join/[joinCode]/verify`          | Email verification code entry (if required)      |
-| `/join/[joinCode]/success`         | Confirmation page after submission               |
+| Route                            | Description                                                         |
+| -------------------------------- | ------------------------------------------------------------------- |
+| `/`                              | Homepage — "Create Event" button + join code input + how-it-works   |
+| `/create`                        | Event creation form with CSV bulk import                            |
+| `/event/[id]/admin`              | Host dashboard (requires `?token=` query param)                     |
+| `/event/[id]/admin/results`      | Allocation results grouped by option, CSV export                    |
+| `/event/[id]/admin/emails`       | Preview of allocation emails (in lieu of actual sending)            |
+| `/join/[joinCode]`               | Participant submission page — inline email verification if required  |
+| `/join/[joinCode]/success`       | Confirmation page after submission                                  |
+| `/dev/inbox`                     | Dev-only simulated email inbox for verification codes               |
 
 ---
 
-## 9. UI/UX Principles
+## 9. Key Implementation Details
 
-- **Minimal and functional** — no unnecessary decoration, clear labels, obvious actions
-- **Mobile-friendly** — responsive layout, touch-friendly drag-and-drop
-- **Accessible** — proper form labels, keyboard navigation, ARIA attributes
-- **Clear feedback** — loading states, success/error messages, confirmation dialogs for destructive actions
-- **No login required** — everything is link-based
+### Admin Token Security
+- SHA256-hashed before storage; never stored in plaintext
+- Raw token shown exactly once at creation and cannot be recovered
+- All admin routes validate the token hash before any operation
 
-### Key UI Components
+### Email Verification Flow (Inline)
+Verification is handled entirely on the `/join/[joinCode]` page, not on a separate `/verify` page:
+1. Participant enters email and clicks "Send Code"
+2. An unverified placeholder submission is created immediately (preserving FCFS position)
+3. A 6-digit code is generated, stored in `verification_codes` with a 15-minute expiry
+4. The code input appears inline; a link to `/dev/inbox` is shown for testing
+5. On correct code entry, the submission is marked `verified: true`
+6. The "Submit Rankings" button is enabled only after verification succeeds
+7. Submitting rankings updates the existing verified submission (no new row inserted)
 
-- **Option ranking** — drag-and-drop list. Participants move options from an "available" pool into a "my rankings" list. Numbered positions show rank order.
-- **Admin dashboard** — simple table of submissions with delete buttons. Status badge for event state. Big "Run Allocation" button when closed.
-- **Results view** — grouped by option, showing assigned emails. Separate section for unassigned participants.
+### Email Sending (Currently Disabled)
+Resend integration is in place but all `resend.emails.send()` calls are commented out:
+- **Allocation emails:** `src/lib/email.ts` — mocked to return `{ sent: n, failed: 0 }`
+- **Verification emails:** `src/app/api/events/[id]/verify/route.ts` — code stored but not sent
+- To re-enable: uncomment the Resend calls and set `RESEND_API_KEY` + `EMAIL_FROM`
+
+### Development Inbox (`/dev/inbox`)
+Simulates a mailbox for testing without a real email provider:
+- Queries all rows in `verification_codes` joined with submissions and events
+- Displays the email address, subject, rendered HTML body, and time until expiry
+- Auto-refreshes every 10 seconds
+- Also linked from the join page after a code is sent
+
+### FCFS Ordering
+Submissions are ordered by `submitted_at` (ascending) both in the admin dashboard and in the allocation algorithm. When email verification is enabled, `submitted_at` is set at code-request time (not at ranking submission time), preserving the participant's place in the queue.
+
+### Drag-and-Drop Ranking (`src/components/ranking-list.tsx`)
+- Two sections: "Your Rankings" (ordered) and "Available Options" (unranked pool)
+- Full-item hit detection with midpoint-based insertion indicator
+- Fallback controls: move up/down buttons and remove button on ranked items, add button on available items
+
+### CSV Handling (Create Page)
+- Papa Parse for client-side CSV import
+- Template download available
+- Bulk-adds options to the in-progress form (does not submit immediately)
 
 ---
 
 ## 10. Security Considerations
 
-- **Admin tokens** are hashed in the database (never stored in plain text). The raw token is shown once at creation and cannot be recovered.
-- **Rate limiting** on submission and verification endpoints to prevent abuse.
+- **Admin tokens** are SHA256-hashed in the database (never stored in plain text). The raw token is shown once at creation and cannot be recovered.
+- **Rate limiting** on submission and verification endpoints — not yet implemented (Phase 6).
 - **Input validation** on all endpoints (email format, rankings reference valid option IDs, etc.).
-- **CSRF protection** via SameSite cookies or token-based protection on mutation endpoints.
-- **SQL injection prevention** — use Supabase client library with parameterised queries (never raw SQL interpolation).
-- **Join codes** are randomly generated and sufficiently long to prevent guessing.
+- **SQL injection prevention** — Supabase client library with parameterised queries.
+- **Join codes** are randomly generated (32-char pool excluding I/O/0/1) and long enough to prevent guessing.
 
 ---
 
 ## 11. Cleanup & Expiry
 
 - A **scheduled job** (Supabase cron or Vercel cron) runs daily to delete events where `expires_at < now()`.
-- Unverified submissions older than 15 minutes are cleaned up by the same job.
+- Unverified submissions older than 15 minutes should be cleaned up by the same job (not yet implemented).
 - All related data (options, submissions, verification codes, allocations) is cascade-deleted with the event.
 
 ---
@@ -317,11 +354,13 @@ The admin token is passed as a query parameter (`?token=xxx`) or in the `Authori
 
 These are explicitly **not** part of the initial build but are worth noting for later:
 
+- Re-enable Resend for actual email sending (allocation results + verification codes)
+- Rate limiting on submission and verification endpoints
+- Cron job for expiry cleanup of events and unverified submissions
 - Participant results view (participants can see their own allocation via their email)
 - Multiple allocation algorithms (random priority, lottery, etc.)
 - Statistics dashboard (popularity of options, rank distribution)
 - Host accounts and event history
-- Participant accounts to track allocations across events
 - Webhooks / email notifications when allocation is complete
 - Option groups or categories
 - Weighted preferences
@@ -329,36 +368,38 @@ These are explicitly **not** part of the initial build but are worth noting for 
 
 ---
 
-## 13. Development Phases
+## 13. Implementation Status
 
-### Phase 1: Core Infrastructure
-- Supabase project setup, schema creation
-- Next.js project scaffolding with Tailwind CSS
-- API routes for event CRUD
+### Phase 1: Core Infrastructure — COMPLETE
+- Supabase schema, Next.js + Tailwind scaffolding
+- Supabase client (lazy Proxy pattern), auth helpers, token/code utilities
+- `POST /api/events`, `GET /api/events/join/[code]`, `GET|PATCH /api/events/[id]/admin`
 
-### Phase 2: Event Creation & Participant Flow
-- Create event page and API
-- Join page with option ranking UI (drag-and-drop)
-- Submission API
+### Phase 2: Event Creation & Participant Flow — COMPLETE
+- Create event page with dynamic options editor and CSV bulk import
+- Join page with drag-and-drop ranking (`ranking-list.tsx` component)
+- `POST /api/events/[id]/submissions`
 
-### Phase 3: Host Dashboard
-- Admin dashboard with submission management
-- Close/reopen event functionality
-- Delete submission functionality
+### Phase 3: Host Dashboard — COMPLETE
+- Admin dashboard with submission list, delete, close/reopen controls
+- `GET /api/events/[id]/submissions`, `DELETE /api/events/[id]/submissions/[subId]`
 
-### Phase 4: Allocation
-- Serial Dictatorship algorithm implementation
-- Allocation API endpoint
-- Results page with CSV export
+### Phase 4: Allocation — COMPLETE
+- Serial Dictatorship algorithm (`src/lib/algorithm.ts`)
+- `POST /api/events/[id]/allocate`
+- Results page with option grouping and CSV export
+- `GET /api/events/[id]/results`
+- Allocation email preview page and API route (`GET /api/events/[id]/emails`)
 
-### Phase 5: Email Verification
-- Email sending (Resend or Supabase)
-- Verification code flow
-- Cleanup of expired codes
+### Phase 5: Email Verification — COMPLETE (without real email provider)
+- Inline verification flow on join page (no separate `/verify` page)
+- `POST /api/events/[id]/verify` (send + confirm modes)
+- Dev inbox page (`/dev/inbox`) and API route (`GET /api/dev/inbox`)
+- Resend infrastructure present but disabled; re-enable by uncommenting
 
-### Phase 6: Polish & Deploy
-- Error handling and edge cases
-- Mobile responsiveness
-- Rate limiting
-- Cron job for expiry cleanup
-- Deploy to Vercel + Supabase
+### Phase 6: Polish & Deploy — IN PROGRESS
+- Animated homepage background and info section
+- Error handling and loading states throughout
+- Rate limiting: not yet implemented
+- Cron job for expiry: not yet implemented
+- Vercel deployment: not yet done
