@@ -5,6 +5,7 @@ import {
   submitRankings,
   closeEvent,
   goToAdminDashboard,
+  runAllocation
 } from "./helpers";
 
 test.describe("Allocation Flow", () => {
@@ -119,6 +120,45 @@ test.describe("Allocation Flow", () => {
     expect(res.ok()).toBe(false);
     const body = await res.json();
     expect(body.error).toMatch(/close/i);
+  });
+
+  test("100 submissions across 10 options: close then allocate", async ({ page, request }) => {
+    const NUM_OPTIONS = 10;
+    const NUM_SUBMISSIONS = 100;
+    const CAPACITY = 10; // total capacity = 100, everyone should be assigned
+
+    const options = Array.from({ length: NUM_OPTIONS }, (_, i) => ({
+      name: `Project ${String.fromCharCode(65 + i)}`, // Project A–J
+      capacity: CAPACITY,
+    }));
+
+    const event = await createTestEvent(request, {
+      title: "Large Scale Allocation Test",
+      options,
+    });
+
+    const eventData = await getEventByJoinCode(request, event.join_code);
+    const optionIds = eventData.options.map((o: { id: string }) => o.id);
+
+    // Submit 100 rankings in parallel; each participant shuffles option preference
+    await Promise.all(
+      Array.from({ length: NUM_SUBMISSIONS }, (_, i) => {
+        // Rotate option order so preferences vary across participants
+        const rotated = [...optionIds.slice(i % NUM_OPTIONS), ...optionIds.slice(0, i % NUM_OPTIONS)];
+        return submitRankings(request, event.id, `participant-${i}-${Date.now()}@test.com`, rotated);
+      })
+    );
+
+    await closeEvent(request, event.id, event.admin_token);
+
+    const result = await runAllocation(request, event.id, event.admin_token);
+
+    expect(result.assigned).toBe(NUM_SUBMISSIONS);
+    expect(result.unassigned).toBe(0);
+
+    // Navigate to the results page and pause for manual inspection
+    await page.goto(`/event/${event.id}/admin/results?token=${event.admin_token}`);
+    await page.pause();
   });
 
   test("cannot run allocation twice", async ({ request }) => {
