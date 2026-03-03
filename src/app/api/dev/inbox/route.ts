@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export async function GET() {
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   // Fetch all pending verification codes with their associated email + event
   const { data, error } = await supabaseAdmin
     .from("verification_codes")
@@ -13,7 +17,7 @@ export async function GET() {
   }
 
   const emails = (data ?? []).map((row) => {
-    const submission = row.submissions as { email: string; events: { title: string } | null } | null;
+    const submission = row.submissions as unknown as { email: string; events: { title: string } | null } | null;
     const email = submission?.email ?? "(unknown)";
     const eventTitle = submission?.events?.title ?? "(unknown event)";
     const expired = new Date(row.expires_at) < new Date();

@@ -38,11 +38,11 @@ export async function GET(
   }
 
   const emails = (allocations ?? [])
-    .filter((a) => (a.submissions as { email: string } | null)?.email)
+    .filter((a) => (a.submissions as unknown as { email: string } | null)?.email)
     .map((a) => {
-      const email = (a.submissions as { email: string }).email;
+      const email = (a.submissions as unknown as { email: string }).email;
       const optionName = a.option_id
-        ? ((a.options as { name: string } | null)?.name ?? null)
+        ? ((a.options as unknown as { name: string } | null)?.name ?? null)
         : null;
 
       const subject = `Your allocation result for "${event.title}"`;
