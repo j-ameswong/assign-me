@@ -7,7 +7,9 @@
 [![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-black?logo=vercel)](https://vercel.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A web app for fairly allocating limited options among a group of participants. Built to solve the common problem of assigning resources (like dissertation projects, lab slots, or tutorial groups) when demand exceeds supply.
+<img width="800" height="831" alt="image" src="https://github.com/user-attachments/assets/a4482e5a-6836-4722-9fc4-c7a960d39f2e" />
+
+A web app for fairly allocating limited options (projects, for example) among a group of participants. Built to solve the common problem of assigning resources (like dissertation projects, lab slots, or tutorial groups) when demand exceeds supply.
 
 ## The Problem
 
