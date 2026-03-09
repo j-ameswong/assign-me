@@ -8,7 +8,7 @@ export default function Home() {
       <div className="relative flex min-h-screen w-full items-center justify-center">
         <main className="flex w-full max-w-md flex-col items-center gap-8 px-6 py-16">
           <h1 className="text-5xl font-bold tracking-tight text-primary">
-            AllocateMe
+            AssignMe
           </h1>
           <p className="text-center text-lg text-muted">
             First Come First Served!

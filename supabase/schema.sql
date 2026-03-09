@@ -1,4 +1,4 @@
--- AllocateMe Database Schema
+-- AssignMe Database Schema
 -- Run this in the Supabase SQL Editor to set up the database.
 
 -- 1. Create enum type for event status

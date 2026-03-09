@@ -1,6 +1,6 @@
 # UML Diagrams
 
-Architecture and flow diagrams for AllocateMe, written in [PlantUML](https://plantuml.com).
+Architecture and flow diagrams for AssignMe, written in [PlantUML](https://plantuml.com).
 
 ## Diagrams
 

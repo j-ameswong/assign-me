@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AllocateMe",
+  title: "AssignMe",
   description: "Fair allocation of limited options using Serial Dictatorship",
 };
 

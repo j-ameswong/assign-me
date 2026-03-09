@@ -1,6 +1,6 @@
 // import { Resend } from "resend";
 // const resend = new Resend(process.env.RESEND_API_KEY);
-// const FROM = process.env.EMAIL_FROM ?? "AllocateMe <onboarding@resend.dev>";
+// const FROM = process.env.EMAIL_FROM ?? "AssignMe <onboarding@resend.dev>";
 
 interface AllocationEmailPayload {
   email: string;

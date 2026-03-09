@@ -1,10 +1,10 @@
 
-# AllocateMe — Project Specification
+# AssignMe — Project Specification
 > DISCLAIMER: This spec was written with the assistance of Claude Code
 
 ## 1. Overview
 
-**AllocateMe** is a simple, no-nonsense web app for fair allocation of limited options among a group of participants. A host creates an event with a list of options (each with a capacity), shares a link/code, and participants submit their ranked preferences. The host can review and manage submissions, then run the **Serial Dictatorship** algorithm to allocate options fairly. Results are visible only to the host.
+**AssignMe** is a simple, no-nonsense web app for fair allocation of limited options among a group of participants. A host creates an event with a list of options (each with a capacity), shares a link/code, and participants submit their ranked preferences. The host can review and manage submissions, then run the **Serial Dictatorship** algorithm to allocate options fairly. Results are visible only to the host.
 
 ### Example Use Case
 
