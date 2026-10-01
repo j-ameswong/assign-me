@@ -1,0 +1,15 @@
+name: Daily curl
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Curl DB
+        run: |
+          curl -fsS "${{ secrets.PING_URL }}" \
+            -H "apikey: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}"
