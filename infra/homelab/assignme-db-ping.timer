@@ -1,0 +1,12 @@
+[Unit]
+Description=assign-me: daily Supabase DB health ping
+
+[Timer]
+# Same slot as the old GitHub Action (cron "0 8 * * *", UTC)
+OnCalendar=*-*-* 08:00:00 UTC
+# Run a missed slot at boot if the server was off
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

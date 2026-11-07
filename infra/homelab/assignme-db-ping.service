@@ -1,0 +1,29 @@
+[Unit]
+Description=assign-me: daily Supabase DB health ping (keeps the free-tier project from pausing)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=true
+# PING_URL=<Supabase REST URL> and SUPABASE_PUBLISHABLE_KEY=<key>; root-owned, mode 600.
+EnvironmentFile=/etc/assignme-db-ping.env
+# Body is discarded so query results never land in the journal; -f still fails the unit on HTTP errors.
+ExecStart=/usr/bin/curl -fsS --max-time 30 --retry 3 --retry-all-errors -o /dev/null \
+    -H "apikey: ${SUPABASE_PUBLISHABLE_KEY}" ${PING_URL}
+TimeoutStartSec=5min
+
+# Hardening: outbound HTTPS only, no writes anywhere.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
